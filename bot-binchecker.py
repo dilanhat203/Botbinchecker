@@ -4,6 +4,7 @@ import json
 import sys
 import time
 import datetime
+import random
 from colorama import init, Fore, Style
 
 # Inicializa colorama
@@ -11,16 +12,29 @@ init(autoreset=True)
 
 # Diccionario para guardar estadísticas por usuario
 user_stats = {}
+total_queries = 0
+start_time = time.time()
+
+def uptime_str(seconds: float) -> str:
+    sec = int(seconds)
+    days, sec = divmod(sec, 86400)
+    hrs, sec = divmod(sec, 3600)
+    mins, sec = divmod(sec, 60)
+    if days:
+        return f"{days}d {hrs:02d}:{mins:02d}:{sec:02d}"
+    return f"{hrs:02d}:{mins:02d}:{sec:02d}"
 
 def get_bin_info(bin_number: str):
     """Obtiene la información del BIN desde la API y mide el tiempo de respuesta."""
-    start_time = time.time()
+    global total_queries
+    start_time_req = time.time()
     try:
         response = requests.get(f"https://data.handyapi.com/bin/{bin_number}", timeout=10)
         response.raise_for_status()
-        elapsed = time.time() - start_time
+        elapsed = time.time() - start_time_req
         api = response.json()
         api["elapsed_time"] = elapsed
+        total_queries += 1
         return api
     except requests.exceptions.Timeout:
         return {"Status": "ERROR", "Message": "⏰ Tiempo de espera agotado al conectar con la API."}
@@ -48,7 +62,7 @@ def get_flag(country_name: str):
         "Switzerland": "🇨🇭", "Austria": "🇦🇹", "Sweden": "🇸🇪", "Norway": "🇳🇴",
         "Denmark": "🇩🇰", "Finland": "🇫🇮", "Poland": "🇵🇱", "Czech Republic": "🇨🇿",
         "Slovakia": "🇸🇰", "Hungary": "🇭🇺", "Romania": "🇷🇴", "Bulgaria": "🇧🇬",
-        "Greece": "🇬🇷", "Turkey": "🇹🇷", "Russia": "🇷🇺", "Ukraine": "🇺🇦",
+        "Greece": "🇬🇷", "Turkey": "🇹🇷", "Russia": "🇷🇺", "Russian Federation": "🇷🇺", "Ukraine": "🇺🇦",
         "Belarus": "🇧🇾", "Serbia": "🇷🇸", "Croatia": "🇭🇷", "Slovenia": "🇸🇮",
         "Lithuania": "🇱🇹", "Latvia": "🇱🇻", "Estonia": "🇪🇪", "Iceland": "🇮🇸",
         "Luxembourg": "🇱🇺", "Malta": "🇲🇹", "Cyprus": "🇨🇾", "North Macedonia": "🇲🇰",
@@ -93,21 +107,18 @@ def luhn_check(card_number: str) -> bool:
     Verifica si un número de tarjeta cumple el algoritmo de Luhn.
     Implementación clara y segura: procesa cada dígito de derecha a izquierda.
     """
-    # quitar espacios y guiones por si el usuario los puso
     card_number = ''.join(ch for ch in card_number if ch.isdigit())
     if not card_number:
         return False
 
     total = 0
     num_digits = len(card_number)
-    parity = num_digits % 2  # si num_digits es par -> parity 0, impar -> 1
+    parity = num_digits % 2
 
     for i, ch in enumerate(card_number):
-        digit = ord(ch) - ord('0')  # conversión segura a entero
-        # si la posición tiene paridad diferente, se duplica (alternar desde la izquierda)
+        digit = ord(ch) - ord('0')
         if i % 2 == parity:
             d = digit * 2
-            # si el resultado es mayor a 9, sumar sus dígitos -> equival a restar 9
             if d > 9:
                 d -= 9
             total += d
@@ -122,7 +133,6 @@ def mask_card(card_number: str) -> str:
     if len(digits) <= 4:
         return digits
     masked = '*' * (len(digits) - 4) + digits[-4:]
-    # agrupar cada 4 para mejor lectura
     groups = [masked[max(i-4,0):i] for i in range(len(masked), 0, -4)]
     groups.reverse()
     return ' '.join(groups)
@@ -154,7 +164,7 @@ def parse_card_input(text: str):
     y = int(year)
     if len(year) == 2:
         current_year = datetime.datetime.now().year
-        prefix = current_year // 100  # ejemplo 2025 -> 20
+        prefix = current_year // 100
         y = prefix * 100 + y
     return {
         "card": card,
@@ -163,25 +173,73 @@ def parse_card_input(text: str):
         "cvv": cvv
     }
 
+def format_card_output(card_number: str) -> str:
+    """Formatea en bloques de 4 para salida legible: '1234 5678 9012 3456'"""
+    digits = ''.join(ch for ch in card_number if ch.isdigit())
+    groups = [digits[i:i+4] for i in range(0, len(digits), 4)]
+    return ' '.join(groups)
+
 def main():
     print(Fore.YELLOW + Style.BRIGHT + "🔐 Introduce tu token de Telegram:")
     TOKEN = input(Fore.GREEN + Style.BRIGHT + "> ").strip()
 
     bot = telebot.TeleBot(TOKEN, parse_mode='Markdown')
 
+    from telebot import types
+
     @bot.message_handler(commands=['start', 'help'])
     def send_welcome(message):
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("📚 Comandos básicos", callback_data='help_basic'))
+        markup.add(types.InlineKeyboardButton("💳 Validaciones", callback_data='help_luhn'))
+        markup.add(types.InlineKeyboardButton("🔧 Utilidades", callback_data='help_utils'))
+        markup.add(types.InlineKeyboardButton("ℹ️ Acerca del bot", callback_data='help_about'))
         bot.reply_to(message,
             "👋 *Bienvenido al Checker BIN*\n\n"
             "Usa el comando:\n"
             "`/bin 457173`\n\n"
-            "Comandos:\n"
-            "`/info` – Sobre el bot\n"
-            "`/status` – Estado de la API\n"
-            "`/lunh` – Validar tarjeta con Luhn\n\n"
-            "Formato `/lunh`:\n"
-            "`/lunh 4111111111111111|12|2026|123`"
+            "También: pulsa los botones para ver ayuda avanzada.",
+            reply_markup=markup
         )
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('help_'))
+    def help_callback(call):
+        if call.data == 'help_basic':
+            msg = (
+                "📚 *Comandos básicos:*\n"
+                "`/start` — Iniciar bot\n"
+                "`/bin <número>` — Consultar BIN\n"
+                "`/status` — Ver estado de la API\n"
+                "`/info` — Información general"
+            )
+        elif call.data == 'help_luhn':
+            msg = (
+                "💳 *Validaciones:*\n"
+                "`/lunh <tarjeta|mes|año|cvv>` — Verifica si cumple el algoritmo de Luhn.\n"
+                "`/help` — Muestra esta ayuda avanzada."
+            )
+        elif call.data == 'help_utils':
+            msg = (
+                "🔧 *Utilidades varias:*\n"
+                "`/mask` — Enmascara un número de tarjeta.\n"
+                "`/stats` — Estadísticas personales de uso.\n"
+                "`/uptime` — Tiempo activo del bot."
+            )
+        elif call.data == 'help_about':
+            msg = (
+                "ℹ️ *Sobre este bot:*\n"
+                "Desarrollado por: *𝐷𝑖𝑙𝑎𝑛𝐻𝑎𝑡*\n"
+                "Versión: `2.0`\n"
+                "Lenguaje: Python 🐍\n"
+                "API: HandyAPI BIN Lookup\n"
+                "Plataforma: Telegram + Termux\n\n"
+                "© 2025 DilanHat"
+            )
+        else:
+            msg = "❌ Categoría desconocida."
+
+        bot.answer_callback_query(call.id)
+        bot.send_message(call.message.chat.id, msg, parse_mode='Markdown')
 
     @bot.message_handler(commands=['info'])
     def info_cmd(message):
@@ -193,15 +251,34 @@ def main():
             "Uso: `/bin <6+ dígitos>` para consultar.\n"
         )
 
+    @bot.message_handler(commands=['about'])
+    def about_cmd(message):
+        """Información técnica y créditos"""
+        now = time.time()
+        uptime = uptime_str(now - start_time)
+        bot.reply_to(message,
+            "🤖 *Acerca de este bot*\n\n"
+            "• Autor: *𝐷𝑖𝑙𝑎𝑛𝐻𝑎𝑡*\n"
+            "• Lenguaje: Python 3 🐍\n"
+            "• Framework: pyTelegramBotAPI\n"
+            "• Funciones: BIN Lookup, Luhn Checker\n"
+            f"• Uptime: `{uptime}`\n"
+            f"• Consultas totales (desde inicio): `{total_queries}`\n\n"
+            "✨ Este bot fue creado con fines educativos, para analizar BINs, "
+            "entender el algoritmo de Luhn y practicar desarrollo de bots seguros."
+        )
+
     @bot.message_handler(commands=['status'])
     def status_cmd(message):
         bot.send_chat_action(message.chat.id, 'typing')
-        start = time.time()
+        start_req = time.time()
         try:
             r = requests.get("https://data.handyapi.com/bin/457173", timeout=5)
             r.raise_for_status()
-            latency = time.time() - start
-            bot.reply_to(message, f"✅ *API Activa*\nTiempo de respuesta: `{latency:.2f} segundos` ⚡")
+            latency = (time.time() - start_req) * 1000.0
+            now = time.time()
+            uptime = uptime_str(now - start_time)
+            bot.reply_to(message, f"📊 *Estado del bot*\n\n✅ API en línea (`{latency:.0f} ms`)\n📦 Consultas totales: `{total_queries}`\n🕒 Uptime: `{uptime}`")
         except Exception as e:
             bot.reply_to(message, f"❌ *API Inactiva o sin respuesta.*\nDetalles: `{str(e)}`")
 
@@ -223,12 +300,12 @@ def main():
             user_id = message.from_user.id
             user_stats[user_id] = user_stats.get(user_id, 0) + 1
 
-            country = api["Country"]["Name"]
-            flag = get_flag(country)
-            brand = api["Scheme"]
-            card_type = api["Type"]
-            level = api["CardTier"]
-            bank = api["Issuer"]
+            country = api["Country"].get("Name") if isinstance(api["Country"], dict) else api["Country"]
+            flag = get_flag(country or "")
+            brand = api.get("Scheme")
+            card_type = api.get("Type")
+            level = api.get("CardTier")
+            bank = api.get("Issuer")
             elapsed = api.get("elapsed_time", 0)
 
             msg = (
@@ -266,12 +343,13 @@ def main():
         year = parsed["year"]
         cvv = parsed["cvv"]
 
+        # Contador y stats
+        user_id = message.from_user.id
+        user_stats[user_id] = user_stats.get(user_id, 0) + 1
+
         # Validar expiración (simple)
         now = datetime.datetime.now()
         try:
-            exp_date = datetime.datetime(year=year, month=month, day=1)
-            # consideramos válido si el último día del mes aún no pasó
-            # calcular último día del mes: sumar 1 mes y restar 1 día
             if month == 12:
                 next_month = datetime.datetime(year=year+1, month=1, day=1)
             else:
@@ -279,7 +357,7 @@ def main():
             last_day_of_month = next_month - datetime.timedelta(days=1)
             expired = last_day_of_month < now
         except Exception:
-            expired = False  # en caso raro, no marcar expirado sin errores
+            expired = False
 
         # Luhn
         passes_luhn = luhn_check(card)
@@ -303,6 +381,17 @@ def main():
         )
 
         bot.reply_to(message, msg)
+
+    @bot.message_handler(commands=['stats'])
+    def stats_cmd(message):
+        user_id = message.from_user.id
+        user_count = user_stats.get(user_id, 0)
+        bot.reply_to(message, f"📊 *Tus estadísticas*\n\nConsultas realizadas por ti: `{user_count}`\nConsultas totales del bot: `{total_queries}`")
+
+    @bot.message_handler(commands=['uptime'])
+    def uptime_cmd(message):
+        now = time.time()
+        bot.reply_to(message, f"🕒 Uptime: `{uptime_str(now - start_time)}`")
 
     def start_bot():
         print(Fore.CYAN + Style.BRIGHT + "✅ Bot iniciado correctamente. Esperando comandos...")
