@@ -3,6 +3,7 @@ import requests
 import json
 import sys
 import time
+import datetime
 from colorama import init, Fore, Style
 
 # Inicializa colorama
@@ -31,11 +32,86 @@ def get_bin_info(bin_number: str):
 def get_flag(country_name: str):
     """Devuelve una bandera según el país."""
     flags = {
-        "Argentina": "🇦🇷", "Brazil": "🇧🇷", "Chile": "🇨🇱", "United States": "🇺🇸", 
-        "Mexico": "🇲🇽", "Spain": "🇪🇸", "France": "🇫🇷", "Italy": "🇮🇹", 
+        "Argentina": "🇦🇷", "Brazil": "🇧🇷", "Chile": "🇨🇱", "United States": "🇺🇸",
+        "Mexico": "🇲🇽", "Spain": "🇪🇸", "France": "🇫🇷", "Italy": "🇮🇹",
         "Germany": "🇩🇪", "United Kingdom": "🇬🇧", "Canada": "🇨🇦"
     }
     return flags.get(country_name, "🌍")
+
+def luhn_check(card_number: str) -> bool:
+    """
+    Verifica si un número de tarjeta cumple el algoritmo de Luhn.
+    Implementación clara y segura: procesa cada dígito de derecha a izquierda.
+    """
+    # quitar espacios y guiones por si el usuario los puso
+    card_number = ''.join(ch for ch in card_number if ch.isdigit())
+    if not card_number:
+        return False
+
+    total = 0
+    num_digits = len(card_number)
+    parity = num_digits % 2  # si num_digits es par -> parity 0, impar -> 1
+
+    for i, ch in enumerate(card_number):
+        digit = ord(ch) - ord('0')  # conversión segura a entero
+        # si la posición tiene paridad diferente, se duplica (alternar desde la izquierda)
+        if i % 2 == parity:
+            d = digit * 2
+            # si el resultado es mayor a 9, sumar sus dígitos -> equival a restar 9
+            if d > 9:
+                d -= 9
+            total += d
+        else:
+            total += digit
+
+    return (total % 10) == 0
+
+def mask_card(card_number: str) -> str:
+    """Devuelve el número enmascarado: **** **** **** 1234 (mantiene solo últimos 4)"""
+    digits = ''.join(ch for ch in card_number if ch.isdigit())
+    if len(digits) <= 4:
+        return digits
+    masked = '*' * (len(digits) - 4) + digits[-4:]
+    # agrupar cada 4 para mejor lectura
+    groups = [masked[max(i-4,0):i] for i in range(len(masked), 0, -4)]
+    groups.reverse()
+    return ' '.join(groups)
+
+def parse_card_input(text: str):
+    """
+    Espera formato: numero|mes|año|cvv
+    Retorna dict con keys: card, month, year, cvv o None si inválido.
+    """
+    parts = text.strip().split('|')
+    if len(parts) != 4:
+        return None
+    card = parts[0].strip().replace(' ', '').replace('-', '')
+    month = parts[1].strip()
+    year = parts[2].strip()
+    cvv = parts[3].strip()
+
+    # Validaciones básicas
+    if not card.isdigit() or len(card) < 12 or len(card) > 19:
+        return None
+    if not month.isdigit() or not (1 <= int(month) <= 12):
+        return None
+    if not year.isdigit() or not (0 <= int(year) <= 9999):
+        return None
+    if not cvv.isdigit() or not (3 <= len(cvv) <= 4):
+        return None
+
+    # Convertir año a 4 dígitos si el usuario puso 2 (ej: 25 -> 2025 asunción común)
+    y = int(year)
+    if len(year) == 2:
+        current_year = datetime.datetime.now().year
+        prefix = current_year // 100  # ejemplo 2025 -> 20
+        y = prefix * 100 + y
+    return {
+        "card": card,
+        "month": int(month),
+        "year": int(y),
+        "cvv": cvv
+    }
 
 def main():
     print(Fore.YELLOW + Style.BRIGHT + "🔐 Introduce tu token de Telegram:")
@@ -45,14 +121,16 @@ def main():
 
     @bot.message_handler(commands=['start', 'help'])
     def send_welcome(message):
-        bot.reply_to(message, 
+        bot.reply_to(message,
             "👋 *Bienvenido al Checker BIN*\n\n"
             "Usa el comando:\n"
             "`/bin 457173`\n\n"
-            "para obtener la información del BIN solicitado.\n\n"
-            "Otros comandos útiles:\n"
+            "Comandos:\n"
             "`/info` – Sobre el bot\n"
             "`/status` – Estado de la API\n"
+            "`/lunh` – Validar tarjeta con Luhn\n\n"
+            "Formato `/lunh`:\n"
+            "`/lunh 4111111111111111|12|2026|123`"
         )
 
     @bot.message_handler(commands=['info'])
@@ -79,7 +157,9 @@ def main():
 
     @bot.message_handler(commands=['bin'])
     def handle_bin(message):
-        bin_input = message.text[len("/bin "):].strip().replace(" ", "")
+        # Soporta tanto '/bin 457173' como '/bin457173'
+        payload = message.text[len("/bin"):].strip()
+        bin_input = payload.replace(" ", "")
 
         if not (bin_input.isdigit() and len(bin_input) >= 6):
             bot.reply_to(message, "⚠️ Usa `/bin` seguido de un BIN numérico de al menos *6 dígitos*.")
@@ -114,6 +194,65 @@ def main():
             bot.reply_to(message, msg)
         else:
             bot.reply_to(message, api.get("Message", "❌ BIN no válido o no encontrado."))
+
+    @bot.message_handler(commands=['lunh'])
+    def handle_lunh(message):
+        """
+        Espera: /lunh 4111111111111111|12|2026|123
+        O bien: /lunh 4111111111111111 | 12 | 26 | 123
+        """
+        payload = message.text[len("/lunh"):].strip()
+        if not payload:
+            bot.reply_to(message, "⚠️ Debes enviar los datos en el formato:\n`/lunh numero|mes|año|cvv`\nEj: `/lunh 4111111111111111|12|2026|123`")
+            return
+
+        parsed = parse_card_input(payload)
+        if not parsed:
+            bot.reply_to(message, "❌ Formato inválido o datos fuera de rango. Asegúrate de usar:\n`numero|mes|año|cvv` (ej: `4111111111111111|12|2026|123`)\n- Número entre 12 y 19 dígitos\n- Mes entre 1 y 12\n- Año razonable (ej. 2026 o 26)\n- CVV de 3 o 4 dígitos")
+            return
+
+        card = parsed["card"]
+        month = parsed["month"]
+        year = parsed["year"]
+        cvv = parsed["cvv"]
+
+        # Validar expiración (simple)
+        now = datetime.datetime.now()
+        try:
+            exp_date = datetime.datetime(year=year, month=month, day=1)
+            # consideramos válido si el último día del mes aún no pasó
+            # calcular último día del mes: sumar 1 mes y restar 1 día
+            if month == 12:
+                next_month = datetime.datetime(year=year+1, month=1, day=1)
+            else:
+                next_month = datetime.datetime(year=year, month=month+1, day=1)
+            last_day_of_month = next_month - datetime.timedelta(days=1)
+            expired = last_day_of_month < now
+        except Exception:
+            expired = False  # en caso raro, no marcar expirado sin errores
+
+        # Luhn
+        passes_luhn = luhn_check(card)
+
+        masked = mask_card(card)
+        luhn_text = "✅ *PASA Luhn*" if passes_luhn else "❌ *NO pasa Luhn*"
+        exp_text = "✅ *No expirada*" if not expired else "❌ *Expirada*"
+
+        # CVV length suggestion
+        cvv_note = "CVV OK" if (3 <= len(cvv) <= 4) else "CVV inválido"
+
+        # Respuesta final
+        msg = (
+            f"💳 *Comprobación Luhn*\n\n"
+            f"Tarjeta: `{masked}`\n"
+            f"{luhn_text}\n"
+            f"Expiración: `{month:02d}/{year}` — {exp_text}\n"
+            f"CVV: `{cvv}` ({cvv_note})\n\n"
+            f"ℹ️ *Nota*: Esto solo valida el algoritmo de Luhn y formato básico. "
+            "No verifica saldo, validez real con el emisor ni autorización."
+        )
+
+        bot.reply_to(message, msg)
 
     def start_bot():
         print(Fore.CYAN + Style.BRIGHT + "✅ Bot iniciado correctamente. Esperando comandos...")
