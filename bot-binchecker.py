@@ -32,9 +32,59 @@ def get_bin_info(bin_number: str):
 def get_flag(country_name: str):
     """Devuelve una bandera según el país."""
     flags = {
-        "Argentina": "🇦🇷", "Brazil": "🇧🇷", "Chile": "🇨🇱", "United States": "🇺🇸",
-        "Mexico": "🇲🇽", "Spain": "🇪🇸", "France": "🇫🇷", "Italy": "🇮🇹",
-        "Germany": "🇩🇪", "United Kingdom": "🇬🇧", "Canada": "🇨🇦"
+        # América
+        "Argentina": "🇦🇷", "Bolivia": "🇧🇴", "Brazil": "🇧🇷", "Chile": "🇨🇱",
+        "Colombia": "🇨🇴", "Costa Rica": "🇨🇷", "Cuba": "🇨🇺", "Dominican Republic": "🇩🇴",
+        "Ecuador": "🇪🇨", "El Salvador": "🇸🇻", "Guatemala": "🇬🇹", "Honduras": "🇭🇳",
+        "Mexico": "🇲🇽", "Nicaragua": "🇳🇮", "Panama": "🇵🇦", "Paraguay": "🇵🇾",
+        "Peru": "🇵🇪", "Uruguay": "🇺🇾", "Venezuela": "🇻🇪", "Canada": "🇨🇦",
+        "United States": "🇺🇸", "Belize": "🇧🇿", "Guyana": "🇬🇾", "Suriname": "🇸🇷",
+        "Bahamas": "🇧🇸", "Barbados": "🇧🇧", "Trinidad and Tobago": "🇹🇹",
+
+        # Europa
+        "United Kingdom": "🇬🇧", "England": "🏴", "Scotland": "🏴", "Wales": "🏴",
+        "Ireland": "🇮🇪", "France": "🇫🇷", "Spain": "🇪🇸", "Portugal": "🇵🇹",
+        "Germany": "🇩🇪", "Italy": "🇮🇹", "Netherlands": "🇳🇱", "Belgium": "🇧🇪",
+        "Switzerland": "🇨🇭", "Austria": "🇦🇹", "Sweden": "🇸🇪", "Norway": "🇳🇴",
+        "Denmark": "🇩🇰", "Finland": "🇫🇮", "Poland": "🇵🇱", "Czech Republic": "🇨🇿",
+        "Slovakia": "🇸🇰", "Hungary": "🇭🇺", "Romania": "🇷🇴", "Bulgaria": "🇧🇬",
+        "Greece": "🇬🇷", "Turkey": "🇹🇷", "Russia": "🇷🇺", "Ukraine": "🇺🇦",
+        "Belarus": "🇧🇾", "Serbia": "🇷🇸", "Croatia": "🇭🇷", "Slovenia": "🇸🇮",
+        "Lithuania": "🇱🇹", "Latvia": "🇱🇻", "Estonia": "🇪🇪", "Iceland": "🇮🇸",
+        "Luxembourg": "🇱🇺", "Malta": "🇲🇹", "Cyprus": "🇨🇾", "North Macedonia": "🇲🇰",
+        "Albania": "🇦🇱", "Bosnia and Herzegovina": "🇧🇦", "Montenegro": "🇲🇪",
+
+        # África
+        "South Africa": "🇿🇦", "Nigeria": "🇳🇬", "Egypt": "🇪🇬", "Morocco": "🇲🇦",
+        "Tunisia": "🇹🇳", "Algeria": "🇩🇿", "Kenya": "🇰🇪", "Uganda": "🇺🇬",
+        "Tanzania": "🇹🇿", "Ghana": "🇬🇭", "Senegal": "🇸🇳", "Cameroon": "🇨🇲",
+        "Ethiopia": "🇪🇹", "Ivory Coast": "🇨🇮", "DR Congo": "🇨🇩", "Madagascar": "🇲🇬",
+        "Zimbabwe": "🇿🇼", "Zambia": "🇿🇲", "Angola": "🇦🇴", "Mozambique": "🇲🇿",
+
+        # Asia
+        "China": "🇨🇳", "Hong Kong": "🇭🇰", "Taiwan": "🇹🇼", "Japan": "🇯🇵",
+        "South Korea": "🇰🇷", "North Korea": "🇰🇵", "India": "🇮🇳", "Pakistan": "🇵🇰",
+        "Bangladesh": "🇧🇩", "Sri Lanka": "🇱🇰", "Nepal": "🇳🇵", "Bhutan": "🇧🇹",
+        "Myanmar": "🇲🇲", "Thailand": "🇹🇭", "Vietnam": "🇻🇳", "Malaysia": "🇲🇾",
+        "Singapore": "🇸🇬", "Indonesia": "🇮🇩", "Philippines": "🇵🇭", "United Arab Emirates": "🇦🇪",
+        "Saudi Arabia": "🇸🇦", "Qatar": "🇶🇦", "Kuwait": "🇰🇼", "Israel": "🇮🇱",
+        "Iran": "🇮🇷", "Iraq": "🇮🇶", "Jordan": "🇯🇴", "Lebanon": "🇱🇧",
+        "Oman": "🇴🇲", "Yemen": "🇾🇪", "Kazakhstan": "🇰🇿", "Uzbekistan": "🇺🇿",
+        "Turkmenistan": "🇹🇲", "Azerbaijan": "🇦🇿", "Georgia": "🇬🇪", "Armenia": "🇦🇲",
+        "Mongolia": "🇲🇳",
+
+        # Oceanía
+        "Australia": "🇦🇺", "New Zealand": "🇳🇿", "Fiji": "🇫🇯", "Papua New Guinea": "🇵🇬",
+        "Samoa": "🇼🇸", "Tonga": "🇹🇴",
+
+        # Otros / pequeños estados
+        "Singapore Republic": "🇸🇬", "Vatican City": "🇻🇦", "San Marino": "🇸🇲",
+        "Monaco": "🇲🇨", "Liechtenstein": "🇱🇮", "Andorra": "🇦🇩", "Kosovo": "🇽🇰",
+        "Palestine": "🇵🇸", "Czechia": "🇨🇿", "Réunion": "🇷🇪",
+
+        # Fallbacks comunes (variantes en inglés)
+        "UK": "🇬🇧", "U.S.": "🇺🇸", "UAE": "🇦🇪", "S. Korea": "🇰🇷",
+        "South Korea (Republic of Korea)": "🇰🇷", "United States of America": "🇺🇸"
     }
     return flags.get(country_name, "🌍")
 
